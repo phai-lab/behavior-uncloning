@@ -4,12 +4,15 @@ import unittest
 from types import SimpleNamespace
 
 import torch
+import torch.nn.functional as F
 from torch import nn
+from torch.utils.data import DataLoader, TensorDataset
 
 from more import (
     ModeClassifier,
     MoreLoss,
     diffusion_policy_features,
+    evaluate_mode_classifier,
     source_mode_gate,
     subset_redirect_loss,
 )
@@ -109,6 +112,20 @@ class MoreCoreTest(unittest.TestCase):
         self.assertEqual(out.features.shape, (3, 5 + 2 * 2))
         out.features.sum().backward()
         self.assertIsNotNone(model.linear.weight.grad)
+
+    def test_evaluate_mode_classifier_loss_is_per_sample_mean(self) -> None:
+        torch.manual_seed(0)
+        classifier = ModeClassifier(input_dim=4, num_modes=3, hidden_dim=8)
+        features = torch.randn(5, 4)
+        labels = torch.tensor([0, 1, 2, 0, 1])
+        # batch_size=4 leaves a final partial batch of one sample.
+        loader = DataLoader(TensorDataset(features, labels), batch_size=4)
+
+        metrics = evaluate_mode_classifier(classifier, loader, "cpu")
+
+        with torch.no_grad():
+            expected = float(F.cross_entropy(classifier(features), labels))
+        self.assertAlmostEqual(metrics["val_loss"], expected, places=5)
 
 
 if __name__ == "__main__":

@@ -72,18 +72,18 @@ def evaluate_mode_classifier(
 ) -> dict[str, float]:
     device = torch.device(device or next(classifier.parameters()).device)
     classifier.eval().to(device)
-    losses = []
+    loss_sum = 0.0
     correct = 0
     total = 0
     for batch in loader:
         features, labels = _unpack_batch(batch, device)
         logits = classifier(features)
-        losses.append(float(F.cross_entropy(logits, labels)))
+        loss_sum += float(F.cross_entropy(logits, labels, reduction="sum"))
         pred = logits.argmax(dim=-1)
         correct += int((pred == labels).sum())
         total += int(labels.numel())
     return {
-        "val_loss": sum(losses) / len(losses) if losses else float("nan"),
+        "val_loss": loss_sum / total if total else float("nan"),
         "val_acc": correct / total if total else float("nan"),
     }
 
